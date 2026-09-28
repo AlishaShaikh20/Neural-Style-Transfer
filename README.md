@@ -876,16 +876,6 @@ The complete system can be summarized as:
                        User
 ```
 
----
-
-# Interview Explanation
-
-A concise explanation of the project is:
-
-> **“I developed a Neural Style Transfer application using PyTorch and Adaptive Instance Normalization. The system uses a pretrained VGG-19 network to extract content and style features. AdaIN aligns the channel-wise statistics of the content features with the style features, and a trained decoder reconstructs the stylized image. I integrated this inference pipeline into a Flask web application where users can upload arbitrary content and style images and control the strength of style transfer using an alpha parameter. I also deployed the web application and worked through the practical challenges of deploying computationally intensive deep learning inference.”**
-
----
-
 # References
 
 ### Research Paper
