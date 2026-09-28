@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+
+.venv/
+venv/
+env/
+
+uploads/*
+
+content_data/
+style_data/
+
+.ipynb_checkpoints/
