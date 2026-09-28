@@ -408,8 +408,6 @@ Neural-Style-Transfer/
 │
 ├── templates/
 │   ├── index.html
-│   ├── gallery.html
-│   └── faq.html
 │
 ├── static/
 │   └── uploads/
