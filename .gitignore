@@ -1,13 +1,38 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
 
-.venv/
+# Virtual environment
 venv/
 env/
+.venv/
 
-uploads/*
+# IDE
+.vscode/
+.idea/
 
-content_data/
-style_data/
+# Secrets
+.env
+.env.*
+.streamlit/secrets.toml
 
+# Generated Flask uploads/results
+static/uploads/*
+
+# Keep the uploads folder itself in the repository
+!static/uploads/.gitkeep
+
+# Build files
+build/
+dist/
+*.egg-info/
+
+# Jupyter
 .ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

@@ -16,12 +16,18 @@ from utils.utils import adaptive_instance_normalization
 
 
 app = Flask(__name__)
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 app.config['SECRET_KEY'] = 'supersecretkey'
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
+
 Bootstrap(app)
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+
 
 class UploadForm(FlaskForm):
     content = FileField('Content Image')
@@ -33,7 +39,6 @@ class UploadForm(FlaskForm):
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 encoder = VGGEncoder(os.path.join(BASE_DIR, 'vgg', 'vgg_normalised.pth')).to(device)
 decoder = Decoder().to(device)
