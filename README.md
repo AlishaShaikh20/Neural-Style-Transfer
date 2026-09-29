@@ -2,412 +2,185 @@
 
 A deep learning-based **Neural Style Transfer (NST)** application that combines the content of one image with the artistic style of another image.
 
-The project uses **Adaptive Instance Normalization (AdaIN)** to perform fast arbitrary style transfer and provides a **Flask web interface** where users can upload their own content and style images and generate a stylized result.
+The project uses **Adaptive Instance Normalization (AdaIN)** to perform arbitrary style transfer and provides a **Flask web interface** where users can upload content and style images and generate a stylized result.
+
+The application has also been deployed using **Modal**, allowing the Flask website and neural style-transfer inference pipeline to run in the cloud.
 
 ---
 
 ## Project Overview
 
-Neural Style Transfer is a computer vision technique that allows the visual style of one image to be transferred onto another image while preserving the main structure and content of the original image.
+Neural Style Transfer is a computer vision technique that transfers the visual characteristics of one image onto another image while preserving the main content and structure of the original image.
 
-For example:
+```text
+Content Image (photograph of a person)
+        +
+Style Image (artistic painting)
+        ↓
+Stylized Image
+```
 
-**Content Image:** a photograph of a person or scene
+This project implements an AdaIN-based approach inspired by:
 
-**Style Image:** a painting or artwork
-
-**Output:** the original content represented using the visual characteristics of the style image.
-
-This project implements the AdaIN-based approach proposed in:
-
+> Huang, X., & Belongie, S.
 > **Arbitrary Style Transfer in Real-Time with Adaptive Instance Normalization**
-> Huang & Belongie, ICCV 2017
+> ICCV 2017
 
-Unlike traditional style transfer approaches that optimize an image separately for each content-style pair, AdaIN allows arbitrary content and style images to be processed using a trained encoder-decoder network.
+Unlike traditional optimization-based neural style transfer, where an image may need to be optimized separately for every content-style pair, AdaIN enables arbitrary content and style images to be processed using a trained encoder-decoder architecture.
 
 ---
 
 ## Demo
 
-The project includes a Flask-based web application where users can:
+The Flask-based web application lets users:
 
 * Upload a content image
 * Upload a style image
-* Control the style-transfer strength using an alpha value
+* Select the strength of style transfer using an alpha value
 * Generate a stylized image
-* View the input and generated images
-* Explore example content/style combinations
-* Learn about the project through the application's FAQ section
+* View the content, style, and generated images
+* Explore predefined examples
+* View project information and FAQs
 
-### Example
+### Live Demo
 
-| Content Image      | Style Image       | Stylized Result                         |
-| ------------------ | ----------------- | --------------------------------------- |
-| Content photograph | Artistic painting | Content with transferred artistic style |
+**NeuralArt / StyleForge AI**
+
+https://alishashaikh20--adain-nst-website-flask-app.modal.run
+
+The deployed application runs the Flask web interface together with the required neural network model files.
+
+---
+
+## Key Features
+
+* Arbitrary content and style image selection
+* Adaptive Instance Normalization (AdaIN)
+* VGG-based feature extraction
+* Trained decoder for image reconstruction
+* Adjustable style-transfer strength
+* Flask web interface
+* Image upload and validation
+* Example gallery
+* Cloud deployment using Modal
+* CPU-based inference support
+* Separate Modal inference endpoint for testing the AdaIN model
 
 ---
 
 ## How Neural Style Transfer Works
 
-The overall pipeline is:
-
 ```text
-Content Image
-      │
-      ▼
-Resize & Preprocess
-      │
-      ▼
-VGG-19 Encoder
-      │
-      ▼
-Content Feature Representation
-      │
-      │
-      │              Style Image
-      │                   │
-      │                   ▼
-      │             Resize & Preprocess
-      │                   │
-      │                   ▼
-      │              VGG-19 Encoder
-      │                   │
-      │                   ▼
-      │             Style Features
-      │                   │
-      └──────────┬────────┘
-                 ▼
-       Adaptive Instance
-          Normalization
-                 │
-                 ▼
-       Stylized Feature Map
-                 │
-                 ▼
-              Decoder
-                 │
-                 ▼
-         Stylized Image
+Content Image ──► Resize & Preprocess ──► VGG Encoder ──► Content Features ──┐
+                                                                              ├──► AdaIN ──► Alpha Interpolation ──► Decoder ──► Stylized Image
+Style Image   ──► Resize & Preprocess ──► VGG Encoder ──► Style Features   ──┘
 ```
 
-The important idea is that the model does not directly combine the pixels of the two images.
+The model does not directly combine the pixels of the two images. Instead, it performs the style transfer in **feature space**.
 
-Instead, it works in **feature space**.
+### Adaptive Instance Normalization
 
----
-
-# Core Concept: AdaIN
-
-The main technique used in this project is **Adaptive Instance Normalization (AdaIN)**.
-
-The content and style images are first passed through a pretrained VGG encoder to obtain feature representations.
-
-AdaIN aligns the channel-wise mean and variance of the content features with those of the style features.
-
-The basic operation can be represented as:
+AdaIN modifies the content feature statistics so that their channel-wise mean and variance match those of the style features:
 
 ```text
-AdaIN(content, style)
-=
-style_mean
-+
-style_std × normalized_content
-```
-
-More formally:
-
-```text
-AdaIN(x, y) =
-σ(y) * ((x - μ(x)) / σ(x)) + μ(y)
+AdaIN(x, y) = σ(y) * ((x - μ(x)) / σ(x)) + μ(y)
 ```
 
 Where:
 
 * `x` = content feature map
 * `y` = style feature map
-* `μ(x)` = channel-wise mean of content features
-* `σ(x)` = channel-wise standard deviation of content features
-* `μ(y)` = channel-wise mean of style features
-* `σ(y)` = channel-wise standard deviation of style features
+* `μ(x)`, `σ(x)` = channel-wise mean and standard deviation of content features
+* `μ(y)`, `σ(y)` = channel-wise mean and standard deviation of style features
 
-This allows the statistical characteristics of the style features to be transferred to the content features.
+The result is a transformed content feature representation whose statistics resemble the selected style. This is the key mechanism that allows the application to accept arbitrary style images instead of requiring a separate model for every artistic style.
+
+### Why VGG?
+
+The project uses a pretrained **VGG-19-based encoder** for feature extraction. VGG is not being used here primarily as an image classifier. Instead, intermediate convolutional features represent visual information such as edges, shapes, textures, patterns, object structures, and higher-level visual characteristics.
+
+The same encoder is used for both the content and style images, and its parameters remain fixed during inference.
+
+### Encoder
+
+The custom `VGGEncoder` lives in `utils/models.py`. It:
+
+1. Loads the pretrained VGG weights.
+2. Processes input images.
+3. Extracts intermediate feature representations.
+4. Returns the feature representation required by AdaIN.
+
+The encoder is loaded once when the Flask application starts and used with `encoder.eval()`.
+
+### Decoder
+
+After AdaIN produces the stylized feature representation, the decoder reconstructs the final image. Its learned weights are stored in `decoder_12.pth`.
+
+### Alpha Parameter
+
+The `alpha` parameter controls the strength of the style transformation:
+
+```text
+stylized_features = alpha × stylized_features + (1 - alpha) × content_features
+```
+
+* `alpha = 1.0` — the output uses the fully stylized feature representation
+* `alpha = 0.0` — the original content features are retained
+* `alpha = 0.5` — an interpolation between the original content and stylized features
 
 ---
 
-# Why VGG?
+## Image Preprocessing
 
-The project uses a pretrained **VGG-19 network** as the feature encoder.
-
-VGG is not used here primarily as an image classifier.
-
-Instead, intermediate convolutional layers are used to extract meaningful visual features.
-
-These features contain information about:
-
-* Shapes
-* Edges
-* Textures
-* Patterns
-* Object structures
-* Higher-level visual information
-
-The encoder therefore converts the input image from pixel space into a representation that is useful for style transfer.
-
----
-
-# Encoder
-
-The project contains a custom `VGGEncoder`.
-
-Its main responsibilities are:
-
-1. Load the pretrained VGG weights.
-2. Extract intermediate feature representations.
-3. Convert input images into feature-space representations.
-4. Provide those features to the AdaIN operation.
-
-The encoder is used for both:
-
-```text
-Content Image → Content Features
-```
-
-and
-
-```text
-Style Image → Style Features
-```
-
-The encoder parameters remain fixed during inference.
-
----
-
-# Adaptive Instance Normalization
-
-After extracting the two feature representations:
-
-```text
-Content Features
-        +
-Style Features
-        ↓
-      AdaIN
-        ↓
-Stylized Features
-```
-
-AdaIN modifies the statistics of the content feature representation so that they match the statistics of the style representation.
-
-This is what enables the model to work with **arbitrary style images** instead of being restricted to a predefined set of styles.
-
----
-
-# Decoder
-
-After AdaIN produces the stylized feature representation, the decoder converts those features back into image space.
-
-```text
-Stylized Features
-       ↓
-    Decoder
-       ↓
-Stylized Image
-```
-
-The decoder is trained to approximately reverse the transformation performed by the encoder.
-
-Therefore, the complete process is:
-
-```text
-Image
- ↓
-VGG Encoder
- ↓
-Feature Representation
- ↓
-AdaIN
- ↓
-Stylized Feature Representation
- ↓
-Decoder
- ↓
-Output Image
-```
-
----
-
-# Alpha Parameter
-
-The application includes an `alpha` parameter that controls the strength of the style transfer.
-
-The interpolation is:
-
-```text
-output_features =
-alpha × stylized_features
-+
-(1 - alpha) × content_features
-```
-
-### When alpha = 1
-
-The result contains the maximum style transformation.
-
-```text
-alpha = 1.0
-```
-
-### When alpha = 0
-
-The original content features are retained.
-
-```text
-alpha = 0.0
-```
-
-### Intermediate values
-
-For example:
-
-```text
-alpha = 0.5
-```
-
-produces a mixture between the original content representation and the stylized representation.
-
-This provides users with control over how strongly the artistic style affects the final image.
-
----
-
-# Image Preprocessing
-
-Before inference, both content and style images are:
+Before inference, both images are:
 
 1. Loaded using Pillow.
 2. Converted to RGB.
-3. Resized to `256 × 256`.
+3. Resized to a maximum size of `512` according to the torchvision `Resize(512)` transformation.
 4. Converted into PyTorch tensors.
-5. A batch dimension is added.
-6. The tensors are moved to the available device.
+5. Given a batch dimension.
+6. Moved to the available device.
 
-The pipeline is approximately:
-
-```text
-Image
- ↓
-PIL.Image
- ↓
-RGB Conversion
- ↓
-Resize(256 × 256)
- ↓
-ToTensor()
- ↓
-Add Batch Dimension
- ↓
-PyTorch Tensor
-```
+The same preprocessing is applied to the content and style images.
 
 ---
 
-# Inference Pipeline
+## Inference Pipeline
 
-The actual inference process follows these steps:
-
-### Step 1 — Load images
-
-The Flask application receives the uploaded content and style images.
-
-### Step 2 — Preprocess
-
-Both images are resized and converted into tensors.
-
-### Step 3 — Feature extraction
-
-The VGG encoder extracts:
-
-```text
-content_features
-style_features
-```
-
-### Step 4 — Apply AdaIN
-
-The content features are transformed using the style statistics.
-
-### Step 5 — Apply alpha blending
-
-The stylized features are blended with the original content features according to the selected alpha value.
-
-### Step 6 — Decode
-
-The decoder reconstructs the final image.
-
-### Step 7 — Save output
-
-The generated tensor is converted back into a PIL image and saved.
-
-### Step 8 — Display
-
-Flask sends the generated image back to the web interface.
+1. **Receive images** — the user uploads a content and a style image through the Flask interface.
+2. **Validate files** — only `png`, `jpg`, `jpeg` are allowed; filenames pass through `secure_filename()`.
+3. **Save uploads** — files are stored in `static/uploads/`.
+4. **Load images** — `Image.open(path).convert('RGB')`.
+5. **Preprocess** — resize and convert to tensors.
+6. **Extract features** — the VGG encoder produces `content_features` and `style_features`.
+7. **Apply AdaIN** — style statistics are transferred to the content features.
+8. **Apply alpha** — stylized features are interpolated with the content features.
+9. **Decode** — the decoder reconstructs the stylized image.
+10. **Save result** — tensor → CPU → clamp values → remove batch dimension → PIL Image → save.
+11. **Display result** — Flask passes the generated filename to the HTML template.
 
 ---
 
-# Web Application
+## Web Application Architecture
 
-The project uses **Flask** as the backend framework.
-
-The Flask application handles:
-
-* File uploads
-* Input validation
-* Image preprocessing
-* Model inference
-* Output generation
-* Serving uploaded images
-* Serving example images
-* Rendering the HTML interface
-
-The main application flow is:
-
-```text
-User
- ↓
-Flask Web Interface
- ↓
-Upload Content + Style
- ↓
-Validate Files
- ↓
-Save Images
- ↓
-Preprocess Images
- ↓
-Run NST Model
- ↓
-Save Generated Image
- ↓
-Display Result
-```
+The project uses **Flask** as the backend. It handles HTTP requests, file uploads and validation, image preprocessing, model inference, output generation, serving uploaded and example images, and rendering HTML templates.
 
 ---
 
-# Project Structure
+## Project Structure
 
 ```text
 Neural-Style-Transfer/
 │
 ├── app.py
+├── modal_app.py
+├── deploy_flask.py
 │
 ├── decoder_12.pth
-│
 ├── requirements.txt
-├── Procfile
-├── .python-version
-├── .gitignore
 │
 ├── templates/
-│   ├── index.html
+│   └── index.html
 │
 ├── static/
 │   └── uploads/
@@ -430,479 +203,198 @@ Neural-Style-Transfer/
 
 ---
 
-# Important Files
+## Important Files
 
-## `app.py`
+### `app.py`
+The main Flask application. Contains Flask configuration, the upload form, file validation, model loading, image preprocessing, the style-transfer function, image saving, and routes for the page, uploaded images, and example images.
 
-The main Flask application.
+### `utils/models.py`
+The model architecture: the VGG encoder and the decoder.
 
-It contains:
+### `utils/utils.py`
+Utility functions required by the model, most importantly `adaptive_instance_normalization()`, which performs the AdaIN operation.
 
-* Flask configuration
-* Upload form
-* Model loading
-* Image preprocessing
-* Style transfer function
-* Image saving
-* Flask routes
+### `decoder_12.pth`
+The trained decoder weights, loaded when the Flask application starts.
 
-The central inference function performs:
+### `vgg/vgg_normalised.pth`
+The pretrained VGG weights used by the encoder.
 
-```text
-Content Image
-        ↓
-Content Features
-        ↓
-AdaIN ← Style Features
-        ↓
-Stylized Features
-        ↓
-Decoder
-        ↓
-Stylized Image
-```
+### `modal_app.py`
+The separate Modal deployment for the AdaIN inference API. It builds a Modal image, installs PyTorch and dependencies, copies model and utility files, loads the encoder and decoder, runs CPU inference, and exposes a FastAPI-compatible endpoint that accepts base64-encoded content and style images and returns the generated image as base64. It was tested successfully with a content image and La Muse.
+
+### `deploy_flask.py`
+The Modal deployment wrapper for the complete Flask website. Instead of uploading the entire project directory, it explicitly includes `app.py`, `templates/`, `static/`, `examples/`, `utils/`, `vgg/vgg_normalised.pth`, and `decoder_12.pth`, keeping the deployment package focused on what the application actually needs.
 
 ---
 
-## `utils/models.py`
+## Technologies Used
 
-Contains the model architecture used by the project.
-
-This includes the:
-
-* VGG encoder
-* Decoder
-
-The encoder extracts feature representations while the decoder reconstructs images from those representations.
+* **Programming:** Python
+* **Deep Learning:** PyTorch, Torchvision, VGG-19, Adaptive Instance Normalization, encoder-decoder architecture
+* **Computer Vision:** Pillow, image preprocessing, feature extraction
+* **Web Development:** Flask, Flask-WTF, Flask-Bootstrap, HTML, CSS
+* **Deployment:** Modal, Flask WSGI application, FastAPI-compatible inference endpoint
 
 ---
 
-## `utils/utils.py`
-
-Contains utility functions required by the model.
-
-One of the important functions is:
-
-```python
-adaptive_instance_normalization()
-```
-
-which performs the AdaIN operation.
-
----
-
-## `decoder_12.pth`
-
-Contains the trained decoder weights.
-
-The decoder uses these learned parameters to reconstruct an image from the stylized feature representation.
-
----
-
-## `vgg/vgg_normalised.pth`
-
-Contains the pretrained VGG weights used by the encoder.
-
-The VGG network acts as the feature extraction component of the style-transfer pipeline.
-
----
-
-# Technologies Used
-
-### Programming Language
-
-* Python
-
-### Deep Learning
-
-* PyTorch
-* Torchvision
-* VGG-19
-* Adaptive Instance Normalization
-
-### Computer Vision
-
-* Pillow
-* Image preprocessing
-* Feature extraction
-
-### Web Development
-
-* Flask
-* Flask-WTF
-* Flask-Bootstrap
-* HTML
-* CSS
-
-### Deployment
-
-* Render
-
----
-
-# Installation
-
-Clone the repository:
+## Installation
 
 ```bash
 git clone https://github.com/AlishaShaikh20/Neural-Style-Transfer.git
-```
-
-Move into the project directory:
-
-```bash
 cd Neural-Style-Transfer
-```
-
-Create a virtual environment:
-
-```bash
 python -m venv venv
-```
-
-Activate it on Windows:
-
-```bash
 venv\Scripts\activate
-```
-
-Install the dependencies:
-
-```bash
 pip install -r requirements.txt
 ```
 
----
-
-# Running the Application
-
-Start the Flask application:
+## Running Locally
 
 ```bash
 python app.py
 ```
 
-The application will run locally at:
-
-```text
-http://127.0.0.1:5000
-```
-
-Open the address in a browser.
-
-Then:
+The application will run at `http://127.0.0.1:5000`. Then:
 
 1. Upload a content image.
 2. Upload a style image.
-3. Select the desired alpha value.
+3. Select an alpha value.
 4. Click **Transfer Style**.
-5. View the generated image.
+5. Wait for inference to complete.
+6. View the generated result.
 
 ---
 
-# Requirements
+## Deployment with Modal
 
-The project requires:
+The project uses Modal to deploy the Flask application and neural network inference environment. The deployment contains the required model files and project directories inside the Modal container, and the Flask application is exposed using a WSGI wrapper.
 
-```text
-Flask
-Flask-Bootstrap
-Flask-WTF
-Pillow
-PyTorch
-Torchvision
-tqdm
-Werkzeug
-WTForms
-Gunicorn
-```
-
-Exact versions used for deployment are available in:
+Deployed at: `https://alishashaikh20--adain-nst-website-flask-app.modal.run`
 
 ```text
-requirements.txt
+User → Public Modal URL → Flask Application (templates, static files, examples, uploads)
+     → PyTorch Model (VGG Encoder → AdaIN → Decoder) → Generated Image
 ```
+
+### CPU Inference
+
+The deployed application was tested using CPU inference. The model is loaded once when the container starts and placed in evaluation mode. Inference runs under `torch.no_grad()` because model parameters are not updated.
+
+CPU inference is functional but slower than GPU inference, so the application is primarily intended as a demonstration and portfolio project rather than a high-throughput production service.
 
 ---
 
-# Example Results
+## Challenges Faced and Solutions
 
-The repository includes example content/style pairs demonstrating the output of the model.
+### 1. Large Model Files
+**Problem:** `vgg_normalised.pth` and `decoder_12.pth` are much larger than ordinary source files.
+**Solution:** The deployment explicitly includes the required model files rather than uploading unrelated project files.
 
-### Example 1
+### 2. Modal Deployment Initially Included Too Many Files
+**Problem:** The first approach uploaded the entire project directory, resulting in a very large number of files.
+**Solution:** Changed to explicitly include only `app.py`, `templates/`, `static/`, `examples/`, `utils/`, `vgg/vgg_normalised.pth`, and `decoder_12.pth`.
 
-```text
-Content:
-Jimin photograph
+### 3. Flask-Bootstrap Dependency Error
+**Problem:** The deployed app initially returned `Method Not Allowed` because the deployment environment did not contain Flask-Bootstrap.
+**Solution:** Added `Flask-Bootstrap` to the Modal image dependencies. After redeployment the app loaded correctly.
 
-Style:
-La Muse
+### 4. Gallery Examples Were Missing After Deployment
+**Problem:** The website loaded, but the example images were unavailable because `examples/` had not been included.
+**Solution:** Updated the Modal Flask deployment to include:
 
-Result:
-Jimin image with La Muse-inspired artistic style
+```python
+.add_local_dir("examples", "/root/project/examples")
 ```
 
-### Example 2
+### 5. Uploaded Image Path Error
+**Problem:** The deployed app produced `[Errno 2] No such file or directory: 'static/uploads/Jungkook.jpg'`. The original config used a relative path that depended on the current working directory:
 
-```text
-Content:
-Jungkook photograph
-
-Style:
-The Scream
-
-Result:
-Jungkook image with The Scream-inspired artistic style
+```python
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
 ```
 
-These examples demonstrate that the model can apply different artistic styles to different content images.
+**Solution:** Use the absolute project directory, and create the folder at startup:
+
+```python
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static', 'uploads')
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+```
+
+### 6. Incorrect or Repeated Previous Results During Testing
+**Problem:** The result filename was built as `'stylized_' + content_filename`, so using the same content image with a different style reused the same output filename. During browser testing, an older result could appear to be displayed.
+**Current status:** The inference pipeline was verified to work correctly with different styles, including La Muse and Mondrian. A future improvement is to generate a unique filename per request (e.g. a UUID).
+
+### 7. Style Transfer Quality Depends on the Input Image
+**Observation:** Portrait-oriented content images with a clear subject often produced more coherent results than full-body subjects, large backgrounds, or complex compositions.
+**Explanation:** AdaIN transfers style statistics through deep feature representations, so output quality depends on the composition of the inputs. This is treated as a model limitation rather than a deployment failure.
 
 ---
 
-# Training and Inference
+## Testing
 
-The project uses a pretrained VGG network for feature extraction and a trained decoder for image reconstruction.
-
-During inference, the encoder and decoder are placed in evaluation mode:
+The deployed application was tested with combinations such as:
 
 ```text
-Encoder → eval mode
-Decoder → eval mode
+Jungkook + La Muse
+Jimin + La Muse
+Jungkook + The Scream
+Jimin + Mondrian
 ```
 
-Gradient computation is disabled during inference because the model parameters are not being updated.
-
-This reduces unnecessary computation and memory usage.
+Testing confirmed that uploaded content and style images were processed, different styles produced different outputs (La Muse and Mondrian results matched their styles), different content images worked, and the upload-path error was resolved.
 
 ---
 
-# Deployment
+## Limitations
 
-The Flask application has been deployed using **Render**.
+* CPU inference can be slow.
+* Higher-resolution inputs increase computational requirements.
+* Output quality varies depending on the content and style images.
+* Complex/full-body images may be less coherent than simple portraits.
+* The result filename is based on the content filename and can be reused.
+* The deployed environment uses temporary container storage for uploads/results.
+* Designed primarily as a portfolio/demo application, not a large-scale multi-user service.
 
-The deployment configuration uses:
+## Future Improvements
 
-```text
-Gunicorn
-```
-
-as the production WSGI server.
-
-The project also contains:
-
-```text
-Procfile
-```
-
-which specifies the application startup command.
-
-The application can be accessed through the deployed Render URL when the service is running.
-
----
-
-# Deployment Consideration
-
-Neural Style Transfer is more computationally demanding than a typical Flask application because every style-transfer request requires neural network inference.
-
-The project therefore distinguishes between:
-
-```text
-Application Layer
-        ↓
-Flask + Web Interface
-```
-
-and
-
-```text
-ML Inference Layer
-        ↓
-VGG + AdaIN + Decoder
-```
-
-The application can run locally with the full inference pipeline, while cloud deployment depends on the available CPU/GPU resources.
-
-This is an important practical consideration when deploying deep learning applications.
+* Unique filenames for every generated result
+* Better browser cache handling
+* GPU-based inference and higher-resolution output
+* Faster inference
+* Asynchronous/background and queue-based processing
+* Progress indicators
+* Persistent result storage
+* User accounts and saved generation history
+* Multiple style-transfer modes and more advanced style controls
+* Containerized production architecture with a dedicated GPU inference backend
 
 ---
 
-# Challenges Faced
+## What I Learned
 
-During development, several practical challenges were encountered.
-
-### 1. Large model files
-
-Deep learning models contain significantly more data than traditional machine learning models.
-
-The project therefore requires trained model weights such as:
-
-```text
-vgg_normalised.pth
-decoder_12.pth
-```
+* Neural Style Transfer, AdaIN, VGG feature extraction, and encoder-decoder architectures
+* PyTorch inference: image preprocessing, model loading, `torch.no_grad()`, evaluation mode
+* Flask backend development, Flask-WTF forms, file uploads, secure filename handling, templates, static files, and routing
+* Cloud deployment with Modal, WSGI deployment, and FastAPI-compatible endpoints
+* Debugging cloud path issues, managing model files in deployment, and understanding browser caching and generated-result filenames
 
 ---
 
-### 2. Computational requirements
+## References
 
-Neural Style Transfer requires running multiple neural network operations for every request.
-
-CPU-based cloud environments can therefore be significantly slower than GPU environments.
+Huang, X., & Belongie, S. **Arbitrary Style Transfer in Real-Time with Adaptive Instance Normalization.** International Conference on Computer Vision (ICCV), 2017.
 
 ---
 
-### 3. Image size and inference speed
-
-Larger input images increase computational requirements.
-
-To make inference more manageable, the application preprocesses images to:
-
-```text
-256 × 256
-```
-
-before passing them through the model.
-
----
-
-### 4. Web application + ML integration
-
-Another challenge was integrating the deep learning pipeline into a Flask application.
-
-The system needs to coordinate:
-
-```text
-HTTP Request
-     ↓
-File Upload
-     ↓
-Image Processing
-     ↓
-PyTorch Inference
-     ↓
-Image Saving
-     ↓
-HTTP Response
-```
-
-This provided practical experience in deploying machine learning models inside a web application.
-
----
-
-# What I Learned
-
-Through this project, I gained practical experience with:
-
-* Neural Style Transfer
-* Adaptive Instance Normalization
-* VGG feature extraction
-* Encoder-decoder architectures
-* PyTorch inference
-* Image preprocessing
-* Model loading
-* Flask backend development
-* File upload handling
-* HTML template rendering
-* Connecting ML inference with a web application
-* Deploying ML applications
-* Understanding the difference between local and cloud inference
-* Handling computational constraints in ML deployment
-
----
-
-# Future Improvements
-
-Possible improvements include:
-
-* GPU-based inference for faster generation
-* Higher-resolution output generation
-* Better memory management
-* Asynchronous inference
-* Queue-based processing for multiple users
-* Progress indicators during inference
-* User accounts and saved results
-* More advanced style controls
-* Multiple style-transfer modes
-* Containerized deployment
-* Dedicated GPU inference backend
-
----
-
-# Project Workflow
-
-The complete system can be summarized as:
-
-```text
-                 ┌─────────────────┐
-                 │      User       │
-                 └────────┬────────┘
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │  Flask Website  │
-                 └────────┬────────┘
-                          │
-              ┌───────────┴───────────┐
-              │                       │
-              ▼                       ▼
-       Content Image            Style Image
-              │                       │
-              ▼                       ▼
-       Preprocessing             Preprocessing
-              │                       │
-              ▼                       ▼
-       VGG Encoder               VGG Encoder
-              │                       │
-              ▼                       ▼
-       Content Features          Style Features
-              │                       │
-              └───────────┬───────────┘
-                          ▼
-                       AdaIN
-                          │
-                          ▼
-                  Alpha Blending
-                          │
-                          ▼
-                       Decoder
-                          │
-                          ▼
-                  Stylized Image
-                          │
-                          ▼
-                  Flask Response
-                          │
-                          ▼
-                       User
-```
-
-# References
-
-### Research Paper
-
-Huang, X., & Belongie, S.
-**Arbitrary Style Transfer in Real-Time with Adaptive Instance Normalization.**
-ICCV 2017.
-
-### Main Concepts
-
-* Neural Style Transfer
-* Adaptive Instance Normalization
-* VGG feature extraction
-* Encoder-decoder architecture
-* Deep learning image generation
-
----
-
-# Author
+## Author
 
 **Alisha Shaikh**
-
 B.E. Electrical Engineering
 Machine Learning & AI Enthusiast
 
-GitHub:
-https://github.com/AlishaShaikh20
+GitHub: https://github.com/AlishaShaikh20
 
 ---
 
